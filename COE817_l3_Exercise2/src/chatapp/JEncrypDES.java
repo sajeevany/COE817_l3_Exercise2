@@ -4,6 +4,7 @@ import java.io.UnsupportedEncodingException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
+import java.util.Random;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
@@ -98,5 +99,13 @@ public class JEncrypDES {
       System.out.println(e);
       return null;
      }
+    }
+    
+    public static int generateNounce()
+    {
+    	Random randomGenerator = new Random();
+    	int rand = randomGenerator.nextInt(255);
+    	
+    	return rand;
     }
 }

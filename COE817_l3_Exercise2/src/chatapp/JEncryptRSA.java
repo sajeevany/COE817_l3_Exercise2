@@ -33,51 +33,57 @@ public class JEncryptRSA {
 //  
 //  BigInteger privExp = new BigInteger("413607170569240106355162130796497957404600590139690077874292496075867173940387286464334397558879911527577289794644345851732962834469537529656069768837211");
 //  
-        
-    
-             public static byte[] encryptRSA(String message, BigInteger pubExp, BigInteger modulus) throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeySpecException, InvalidKeyException, IllegalBlockSizeException, BadPaddingException {
-                /// Initialize cipher with RSA Parameters
-                byte[] messageBytes = message.getBytes();
-                Cipher cipher = Cipher.getInstance("RSA/ECB/NoPadding");
-
-                KeyFactory keyFactory = KeyFactory.getInstance("RSA");
-
-                // initialize Public and private Key Objects 
-                RSAPublicKeySpec pubKeySpec = new RSAPublicKeySpec(modulus, pubExp);
-                //RSAPrivateKeySpec privKeySpec = new RSAPrivateKeySpec(modulus, privExp);
-
-
-                RSAPublicKey pubKey = (RSAPublicKey) keyFactory.generatePublic(pubKeySpec);
-                //RSAPrivateKey privKey = (RSAPrivateKey) keyFactory.generatePrivate(privKeySpec)
-
-                // Initialize Cipher Encrypt mode
-                cipher.init(Cipher.ENCRYPT_MODE, pubKey);
-                // execute Encrypt
-                byte[] cipherText = cipher.doFinal(messageBytes);
-                return cipherText;
-        }
-         
-        public static String decryptRSA(byte[] encryptedMessage, BigInteger privExp, BigInteger modulus) throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeySpecException, InvalidKeyException, IllegalBlockSizeException, BadPaddingException, UnsupportedEncodingException {
-                        /// Initialize cipher with RSA Parameters
-             Cipher cipher = Cipher.getInstance("RSA/ECB/NoPadding");
+	
+		public static byte[] encryptRSA(byte[] message, BigInteger pubExp, BigInteger modulus) throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeySpecException, InvalidKeyException, IllegalBlockSizeException, BadPaddingException {
+			 byte[] messageBytes = message;
+			 Cipher cipher = Cipher.getInstance("RSA/ECB/NoPadding");
 
              KeyFactory keyFactory = KeyFactory.getInstance("RSA");
 
              // initialize Public and private Key Objects 
-           
-             RSAPrivateKeySpec privKeySpec = new RSAPrivateKeySpec(modulus, privExp);
+             RSAPublicKeySpec pubKeySpec = new RSAPublicKeySpec(modulus, pubExp);
+             //RSAPrivateKeySpec privKeySpec = new RSAPrivateKeySpec(modulus, privExp);
 
 
-             RSAPrivateKey privKey = (RSAPrivateKey) keyFactory.generatePrivate(privKeySpec);
+             RSAPublicKey pubKey = (RSAPublicKey) keyFactory.generatePublic(pubKeySpec);
+             //RSAPrivateKey privKey = (RSAPrivateKey) keyFactory.generatePrivate(privKeySpec)
+
+             // Initialize Cipher Encrypt mode
+             cipher.init(Cipher.ENCRYPT_MODE, pubKey);
+             // execute Encrypt
+             byte[] cipherText = cipher.doFinal(messageBytes);
+             return cipherText;
+		}
+	
+    
+     public static byte[] encryptRSA(String message, BigInteger pubExp, BigInteger modulus) throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeySpecException, InvalidKeyException, IllegalBlockSizeException, BadPaddingException {
+        /// Initialize cipher with RSA Parameters
+        byte[] messageBytes = message.getBytes();
+        
+        return encryptRSA(messageBytes, pubExp, modulus);
+     }
+         
+    public static String decryptRSA(byte[] encryptedMessage, BigInteger privExp, BigInteger modulus) throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeySpecException, InvalidKeyException, IllegalBlockSizeException, BadPaddingException, UnsupportedEncodingException {
+                    /// Initialize cipher with RSA Parameters
+         Cipher cipher = Cipher.getInstance("RSA/ECB/NoPadding");
+
+         KeyFactory keyFactory = KeyFactory.getInstance("RSA");
+
+         // initialize Public and private Key Objects 
+       
+         RSAPrivateKeySpec privKeySpec = new RSAPrivateKeySpec(modulus, privExp);
 
 
-             // Initialize and execute Cipher Dencrypt mode, and then print in
-             // String format
-             cipher.init(Cipher.DECRYPT_MODE, privKey);
+         RSAPrivateKey privKey = (RSAPrivateKey) keyFactory.generatePrivate(privKeySpec);
 
-             byte[] plainText = cipher.doFinal(encryptedMessage);
-             String outputText = new String(plainText, "UTF-8");
-           
-            return outputText;
-        }
+
+         // Initialize and execute Cipher Dencrypt mode, and then print in
+         // String format
+         cipher.init(Cipher.DECRYPT_MODE, privKey);
+
+         byte[] plainText = cipher.doFinal(encryptedMessage);
+         String outputText = new String(plainText, "UTF-8");
+       
+        return outputText;
+    }
 }
