@@ -47,6 +47,7 @@ public class ChatApp extends JFrame implements Runnable{
 	private BufferedReader  bR;
 	private  BufferedWriter bW;
 	private SecretKey sharedKey;	
+	private byte expectedNounceCreatedByServer, expectedNounceCreatedByClient;
 	designation myDesignation;
 	Thread cThread;
 	
@@ -122,7 +123,18 @@ public class ChatApp extends JFrame implements Runnable{
 		userText.addActionListener( 
 				new ActionListener(){
 					public void actionPerformed(ActionEvent event){
-						sendRawMessage(event.getActionCommand());
+						if (myDesignation == designation.server)
+						{
+							expectedNounceCreatedByServer = JEncrypDES.generateNounce();
+							sendDESEncryptedMessage(event.getActionCommand(), sentSecret, expectedNounceCreatedByServer, expectedNounceCreatedByClient);
+						}
+						else
+						{
+							expectedNounceCreatedByClient = JEncrypDES.generateNounce();
+							sendDESEncryptedMessage(event.getActionCommand(), sentSecret, expectedNounceCreatedByClient, expectedNounceCreatedByServer);
+						}
+						
+						//sendRawMessage(event.getActionCommand());
 						userText.setText(" ");
 					}
 				});
@@ -130,7 +142,7 @@ public class ChatApp extends JFrame implements Runnable{
 		chatWindow = new JTextArea();
 		chatWindow.setEditable(false);
 		JScrollPane cWin = new JScrollPane(chatWindow);
-		cWin.setPreferredSize(new Dimension(200,100));
+		cWin.setPreferredSize(new Dimension(200,200));
 		add(cWin, BorderLayout.NORTH);
 		setVisible(true);
 		setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
@@ -158,18 +170,18 @@ public class ChatApp extends JFrame implements Runnable{
 			dataOutStream.writeInt(length);
 			//send message
 			dataOutStream.write(message);
-
-	//		writeMessageToChatWindow("[ " + ((this.myDesignation == designation.server) ? "server " : "client")  +"]" + new String(message));
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 	}
 	
-	public void sendDESEncryptedMessage(String message, SecretKey sharedKey, byte Nounce)
+	public void sendDESEncryptedMessage(String message, SecretKey sharedKey, byte newNounce, byte expectedNounce)
 	{
 		try {
-			byte[] byteMessage = JEncrypDES.encryptDES(message, Nounce, sharedKey);
+			JEncrypDES jDES = new JEncrypDES();
+			byte[] byteMessage = jDES.encryptDES(message, newNounce, expectedNounce, sharedKey);
+
 			//send size of message
 			dataOutStream.writeInt(byteMessage.length);
 			//send message
@@ -177,15 +189,22 @@ public class ChatApp extends JFrame implements Runnable{
 
 		writeMessageToChatWindow("[ " + ((this.myDesignation == designation.server) ? "server " : "client")  +"]" + message);
 		} catch (IOException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 	}
 	
 	public String decryptDESEncryptedMessage(byte[] message, SecretKey sharedKey, byte expectedNounce)
 	{
-			String msg = JEncrypDES.decryptDES(message, expectedNounce, sharedKey);
-			writeMessageToChatWindow("[ " + ((this.myDesignation == designation.server) ? "server " : "client")  +"]" + msg);
+			JEncrypDES jDes = new JEncrypDES();
+			String msg = jDes.decryptDES(message, expectedNounce, sharedKey);
+			if ((this.myDesignation == designation.server))
+			{
+				this.expectedNounceCreatedByClient =  jDes.targetAppExpectedNounce;
+			}
+			else
+			{
+				this.expectedNounceCreatedByServer =  jDes.targetAppExpectedNounce;
+			}
 			
 			return msg.trim();
 	}
@@ -220,12 +239,16 @@ public class ChatApp extends JFrame implements Runnable{
 	
 	private void chat()
 	{
-		String message = " You are now connected !";
-		sendRawMessage(message);
+		/*String message = " You are now connected !";
+		sendRawMessage(message);*/
 		do{
 			try{
-				message = bR.readLine();
-				writeMessageToChatWindow("[ " + ((this.myDesignation == designation.server) ? "client" : "server")  +"]" + message);
+				byte[] byteMessage = readByteStream();
+				//workaround for shared key transmission
+				byte expectedNounce = ((this.myDesignation == designation.server) ? this.expectedNounceCreatedByServer : this.expectedNounceCreatedByClient );
+				String receivedMessage = decryptDESEncryptedMessage(byteMessage, this.sentSecret, expectedNounce);
+				
+				writeMessageToChatWindow("[ " + ((this.myDesignation == designation.server) ? "client" : "server")  +"]" + receivedMessage);
 			}catch (IOException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
@@ -267,6 +290,8 @@ public class ChatApp extends JFrame implements Runnable{
 				bW = new BufferedWriter(new OutputStreamWriter(mySocket.getOutputStream()));
 				
 				handshake();
+				this.expectedNounceCreatedByServer = (byte) 22;
+				this.expectedNounceCreatedByClient = (byte) 22;
 				chat();
 				
 				//Wait for connection/open connection
@@ -337,14 +362,14 @@ public class ChatApp extends JFrame implements Runnable{
 			byteMessage = readByteStream();
 			String decryptedMessage = JEncryptRSA.decryptRSA(byteMessage, server_privExp, server_modulus);
 			sTkn = new StringTokenizer(decryptedMessage,"||");
-			n1 = Integer.parseInt(sTkn.nextToken().trim());
+			expectedNounceCreatedByClient = Byte.parseByte(sTkn.nextToken().trim());
 			peerID = sTkn.nextToken().trim();
 			writeMessageToChatWindow("[client]: " + decryptedMessage);
 			
 			//SEND E(PUa,[N1||N2])
 			this.writeMessageToChatWindow("Handshake PHASE 2");
-			n2 = JEncrypDES.generateNounce();
-			message = "" +  n1  + "||" + n2;
+			expectedNounceCreatedByServer = JEncrypDES.generateNounce();
+			message = "" +  expectedNounceCreatedByClient  + "||" + expectedNounceCreatedByServer;
 			this.writeMessageToChatWindow("Sending: " + message);
 			byteMessage = jRSA.encryptRSA(message, pubExp, pubMod);
 			this.sendRawMessage(byteMessage.length,byteMessage);
@@ -356,10 +381,10 @@ public class ChatApp extends JFrame implements Runnable{
 			sTkn = new StringTokenizer(decryptedMessage,"||");
 			n2_temp = Integer.parseInt(sTkn.nextToken().trim());
 			
-			if (n2_temp != n2 || sTkn.hasMoreElements())
+			if (n2_temp != expectedNounceCreatedByServer || sTkn.hasMoreElements())
 			{
 				//Illegal nounce value / too many elements. Drop handshake
-				writeMessageToChatWindow("[client]: ILLEGAL NOUNCE VALUE FOUND. TERMINATING HANDSHAKE");
+				writeMessageToChatWindow("[server]: ILLEGAL NOUNCE VALUE FOUND. TERMINATING HANDSHAKE");
 				return;
 			}
 			writeMessageToChatWindow("[client]: " + decryptedMessage);
@@ -400,8 +425,8 @@ public class ChatApp extends JFrame implements Runnable{
 			
 			//SEND E(PUb, [N1||IDa])
 			this.writeMessageToChatWindow("Handshake PHASE 1");
-			n1 = JEncrypDES.generateNounce();
-			message = n1 + "||" + this.alias;
+			expectedNounceCreatedByClient = JEncrypDES.generateNounce();
+			message = expectedNounceCreatedByClient + "||" + this.alias;
 			this.writeMessageToChatWindow("Sending: " + message);
 			byteMessage = JEncryptRSA.encryptRSA(message, server_pubExp, server_modulus);
 			this.sendRawMessage(byteMessage.length,byteMessage);
@@ -413,19 +438,19 @@ public class ChatApp extends JFrame implements Runnable{
 			sTkn = new StringTokenizer(decryptedMessage,"||");
 			n1_temp = Integer.parseInt(sTkn.nextToken().trim());
 			
-			if (n1_temp != n1)
+			if ((byte)n1_temp != expectedNounceCreatedByClient)
 			{
 				//Illegal nounce value. Drop handshake
 				writeMessageToChatWindow("[client]: ILLEGAL NOUNCE VALUE FOUND. TERMINATING HANDSHAKE");
 				return;
 			}
 			
-			n2 = Integer.parseInt(sTkn.nextToken());
+			expectedNounceCreatedByServer = Byte.parseByte(sTkn.nextToken());
 			writeMessageToChatWindow("[server]: " + decryptedMessage);
 			
 			//SEND E(PUb,[N2]])
 			this.writeMessageToChatWindow("Handshake PHASE 3");
-			message = "" + n2;
+			message = "" + expectedNounceCreatedByServer;
 			this.writeMessageToChatWindow("Sending: " + message);
 			byteMessage = JEncryptRSA.encryptRSA(message, server_pubExp, server_modulus);
 			this.sendRawMessage(byteMessage.length,byteMessage);
@@ -453,10 +478,7 @@ public class ChatApp extends JFrame implements Runnable{
 	System.out.println("r2 ency enc str " + byteMessage.toString());*/
 			this.writeMessageToChatWindow("Sending: Session Key " + sharedKey.toString());
 			this.sendRawMessage(byteMessage.length,byteMessage);
-			
 		}
-		
-		
 	}
 
 }
