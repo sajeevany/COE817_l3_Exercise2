@@ -1,40 +1,37 @@
-import java.awt.BorderLayout;
-import java.awt.Color;
-import java.awt.Dimension;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
+package chatapp;
+
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
 
-import javax.swing.JFrame;
-import javax.swing.JScrollPane;
-import javax.swing.JTextArea;
-import javax.swing.JTextField;
-import javax.swing.SwingUtilities;
+//
+import java.io.UnsupportedEncodingException;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
+import java.util.Arrays;
+import java.util.Scanner;
+import javax.crypto.BadPaddingException;
+import javax.crypto.Cipher;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.KeyGenerator;
+import javax.crypto.NoSuchPaddingException;
+import javax.crypto.SecretKey;
 
-
-public class ChatApp extends JFrame implements Runnable{
+public class ChatApp implements Runnable{
 	
 	public enum designation{server, client};
 	
 	private String hostToConnect, alias;
 	private int port, myPublicKey, myPrivateKey, mySessionKey;
 	private ServerSocket sSocket;
-	private Socket mySocket = null;
-	/*private DataOutputStream dataOutStream;
-	private DataInputStream dataInStream;*/
-	private BufferedReader  bR;
-	private  BufferedWriter bW;
+	private DataOutputStream dataOutStream;
+	private DataInputStream dataInStream;
 	designation myDesignation;
 	Thread cThread;
-	
-	private JTextField userText;
-	private JTextArea chatWindow;
 	
 	/*
 	 * Generates ChatClient object.
@@ -59,11 +56,11 @@ public class ChatApp extends JFrame implements Runnable{
 		//generate public/private keys
 		
 		//run designation-specific initialization methods
-		/*try {
+		try {
 			switch(myDesignation)
 			{
 				case server:
-					
+					openPort();
 					break;
 				case client:
 					break;
@@ -71,7 +68,7 @@ public class ChatApp extends JFrame implements Runnable{
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
-		}*/
+		}
 	}
 	
 	public void openPort() throws IOException
@@ -90,124 +87,27 @@ public class ChatApp extends JFrame implements Runnable{
 		}
     }
 	
-	public void setGUI(String windowName)
-	{		
-		setTitle(windowName);
-		setSize(375,300);
-		setBackground(Color.gray);
-		
-		userText = new JTextField();
-		userText.setEditable(true);
-		userText.addActionListener( 
-				new ActionListener(){
-					public void actionPerformed(ActionEvent event){
-						sendMessage(event.getActionCommand());
-						userText.setText(" ");
-					}
-				});
-		add(userText, BorderLayout.SOUTH);
-		chatWindow = new JTextArea();
-		chatWindow.setEditable(false);
-		JScrollPane cWin = new JScrollPane(chatWindow);
-		cWin.setPreferredSize(new Dimension(200,100));
-		add(cWin, BorderLayout.NORTH);
-		setVisible(true);
-		setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-		
-	}
-	
-	public void sendMessage(String message)
-	{
-		try {
-			/*dataOutStream.writeBytes(message);*/
-			bW.write(message);
-			bW.newLine();
-			bW.flush();
-			writeMessageToChatWindow("[ " + ((this.myDesignation == designation.server) ? "server " : "client")  +"]  " + message);
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-	}
-	
-	private void writeMessageToChatWindow(String message)
-	{
-		SwingUtilities.invokeLater(
-				new Runnable()
-				{
-					public void run()
-					{
-						chatWindow.append("\n" + message);
-					}
-				}
-				);
-	}
-	
-	private void closeApp()
-	{
-		try {
-			/*dataOutStream.close();
-			dataInStream.close();	*/
-			bR.close();
-			bW.close();
-			
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-			
-	}
-	
-	private void chat()
-	{
-		String message = " You are now connected !";
-		sendMessage(message);
-		do{
-			try{
-				message = bR.readLine();
-				writeMessageToChatWindow("[ " + ((this.myDesignation == designation.server) ? "client" : "server")  +"]  " + message);
-			}catch (IOException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-		}while(true);
-	}
-	
 	public void run()
-	{	
+	{
+		Socket mySocket;
+		
 		//start GUI/UI
-		setGUI(this.myDesignation.toString());
+				
 		
 		try {
 			while(true)
 			{
-				if (this.myDesignation == this.myDesignation.server && (sSocket == null || sSocket.isClosed()) )
+				if (this.myDesignation == this.myDesignation.server)
 				{
-					System.out.println("[Server] Socket open on port: " + port + ". Waiting for server");
-					openPort();
-					
-					//wait for connection
-					while(mySocket == null)
-					{
-						mySocket = sSocket.accept();
-					}
-					System.out.println("[Server] Socket accepted on port " + port + " by remote socket " + mySocket.getRemoteSocketAddress());
+					mySocket = sSocket.accept();
 				} 
 				else
 				{
-					System.out.println("[Client] Connecting to host:" + this.hostToConnect + " on port:"  + port);
 					mySocket =  new Socket(this.hostToConnect, this.port);
-					System.out.println("[Client] Connected to host:" + this.hostToConnect + " on port:"  + port);
 				}
+				dataOutStream = new DataOutputStream(mySocket.getOutputStream());
+				dataInStream = new DataInputStream(mySocket.getInputStream());
 				
-				//setup streams 
-				/*dataOutStream = new DataOutputStream(mySocket.getOutputStream());
-				dataInStream = new DataInputStream(mySocket.getInputStream());*/
-				bR = new BufferedReader(new InputStreamReader(mySocket.getInputStream()));
-				bW = new BufferedWriter(new OutputStreamWriter(mySocket.getOutputStream()));
-				
-				chat();
-				closeApp();
 				//Wait for connection/open connection
 				//Handshake
 					//exchange public keys
@@ -222,6 +122,92 @@ public class ChatApp extends JFrame implements Runnable{
 			e.printStackTrace();
 		}
 	}
-	
+        
+        //desKeygen() returns a Secret Key Object, need to be used to encrypt and decrypt
+        // encryptMessage takes in string and returns a Byte array
+        // decryptMessage takes byte array and returns Original string
+        // Nounce values must be equal for encrypt and decrypt.. OR ELSE computer will explode
+        
+        // EXAMPLE USE 
+           // byte nounce = 1;
+           // SecretKey newKey = desKeyGen();
+           // byte[]encryptedMessage =  encryptDES(message , nounce, newKey);
+          //  String output = decryptDES(encryptedMessage , nounce, newKey);
 
+        
+        public SecretKey desKeyGen() throws NoSuchAlgorithmException {
+
+         //init keygenerator, Object contains functionality to create keys
+         KeyGenerator keygen = KeyGenerator.getInstance("DES");
+         // generate key
+         SecretKey DESkey = keygen.generateKey();
+
+         return DESkey;
+        }
+        //Pass in a message, nounce and key(Key must be generated by deskeyGen )
+        // Returns a BYTE array, the byte array is concatenated with a Nounce 
+        public byte[] encryptDES(String message, byte nounce, SecretKey key) {
+
+         try {
+
+
+          //Cipher object contains Cryptographic cipher functionality
+          Cipher desObject;
+          // Specify Cipher params
+          // DES, ECB Electronic Codebook mode, PKCS5Padding means With Padding, 
+          desObject = Cipher.getInstance("DES/ECB/PKCS5Padding");
+
+          //convert message to byte array, Cipher Methods take Byte Arrays as parameters
+
+          byte[] messageBytes = message.getBytes();
+          messageBytes[messageBytes.length] = nounce;
+          //init cipher encrpyt more with Generated key
+          desObject.init(Cipher.ENCRYPT_MODE, key);
+          // doFinal runs multi part Encryption 
+          byte[] bytesEncrypted = desObject.doFinal(messageBytes);
+          return bytesEncrypted;
+
+
+         } catch (NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeyException | IllegalBlockSizeException | BadPaddingException e) {
+
+          System.out.println(e);
+          return null;
+         }
+
+
+        }
+
+        // Nounce value must be equal to that of the message 
+        // this method returns a String
+        public String decryptDES(byte[] encryptedMessage, int currentNounce, SecretKey key) {
+
+         try {
+          //Cipher object contains Cryptographic cipher functionality
+          Cipher desObject;
+          // Specify Cipher params
+          // DES, ECB Electronic Codebook mode, PKCS5Padding means With Padding, 
+          desObject = Cipher.getInstance("DES/ECB/PKCS5Padding");
+
+          // init and execute Decypher mode, using same key
+          desObject.init(Cipher.DECRYPT_MODE, key);
+          byte[] bytesDecrypted = desObject.doFinal(encryptedMessage);
+
+          if (bytesDecrypted[bytesDecrypted.length - 1] != currentNounce) {
+           System.out.println("BAD NOUNCE");
+           return null;
+          } else {
+           Arrays.copyOf(bytesDecrypted, bytesDecrypted.length - 1);
+           // Converts Bytes to output string
+           String outputText = new String(bytesDecrypted, "UTF-8");
+           return outputText;
+          }
+
+         } catch (NoSuchAlgorithmException | UnsupportedEncodingException | NoSuchPaddingException | InvalidKeyException | IllegalBlockSizeException | BadPaddingException e) {
+
+          System.out.println(e);
+          return null;
+         }
+
+
+        }
 }
