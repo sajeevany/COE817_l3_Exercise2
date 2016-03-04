@@ -122,7 +122,7 @@ public class ChatApp extends JFrame implements Runnable{
 		userText.addActionListener( 
 				new ActionListener(){
 					public void actionPerformed(ActionEvent event){
-						sendMessage(event.getActionCommand());
+						sendRawMessage(event.getActionCommand());
 						userText.setText(" ");
 					}
 				});
@@ -137,7 +137,7 @@ public class ChatApp extends JFrame implements Runnable{
 		
 	}
 	
-	public void sendMessage(String message)
+	public void sendRawMessage(String message)
 	{
 		try {
 			/*dataOutStream.writeBytes(message);*/
@@ -151,7 +151,7 @@ public class ChatApp extends JFrame implements Runnable{
 		}
 	}
 	
-	public void sendMessage(int length, byte[] message)
+	public void sendRawMessage(int length, byte[] message)
 	{
 		try {
 			//send size of message
@@ -164,6 +164,30 @@ public class ChatApp extends JFrame implements Runnable{
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
+	}
+	
+	public void sendDESEncryptedMessage(String message, SecretKey sharedKey, byte Nounce)
+	{
+		try {
+			byte[] byteMessage = JEncrypDES.encryptDES(message, Nounce, sharedKey);
+			//send size of message
+			dataOutStream.writeInt(byteMessage.length);
+			//send message
+			dataOutStream.write(byteMessage);
+
+		writeMessageToChatWindow("[ " + ((this.myDesignation == designation.server) ? "server " : "client")  +"]" + message);
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+	}
+	
+	public String decryptDESEncryptedMessage(byte[] message, SecretKey sharedKey, byte expectedNounce)
+	{
+			String msg = JEncrypDES.decryptDES(message, expectedNounce, sharedKey);
+			writeMessageToChatWindow("[ " + ((this.myDesignation == designation.server) ? "server " : "client")  +"]" + msg);
+			
+			return msg.trim();
 	}
 	
 	private void writeMessageToChatWindow(String message)
@@ -197,7 +221,7 @@ public class ChatApp extends JFrame implements Runnable{
 	private void chat()
 	{
 		String message = " You are now connected !";
-		sendMessage(message);
+		sendRawMessage(message);
 		do{
 			try{
 				message = bR.readLine();
@@ -323,7 +347,7 @@ public class ChatApp extends JFrame implements Runnable{
 			message = "" +  n1  + "||" + n2;
 			this.writeMessageToChatWindow("Sending: " + message);
 			byteMessage = jRSA.encryptRSA(message, pubExp, pubMod);
-			this.sendMessage(byteMessage.length,byteMessage);
+			this.sendRawMessage(byteMessage.length,byteMessage);
 			
 			//RECV E(PUb,[N2]])
 			this.writeMessageToChatWindow("Handshake PHASE 3");
@@ -380,7 +404,7 @@ public class ChatApp extends JFrame implements Runnable{
 			message = n1 + "||" + this.alias;
 			this.writeMessageToChatWindow("Sending: " + message);
 			byteMessage = JEncryptRSA.encryptRSA(message, server_pubExp, server_modulus);
-			this.sendMessage(byteMessage.length,byteMessage);
+			this.sendRawMessage(byteMessage.length,byteMessage);
 			
 			//RECEIVE E(PUa,[N1||N2])
 			this.writeMessageToChatWindow("Handshake PHASE 2");
@@ -404,7 +428,7 @@ public class ChatApp extends JFrame implements Runnable{
 			message = "" + n2;
 			this.writeMessageToChatWindow("Sending: " + message);
 			byteMessage = JEncryptRSA.encryptRSA(message, server_pubExp, server_modulus);
-			this.sendMessage(byteMessage.length,byteMessage);
+			this.sendRawMessage(byteMessage.length,byteMessage);
 			
 			//SEND E(PUb,E(PRa, Ks))
 			this.writeMessageToChatWindow("Handshake PHASE 4");
@@ -428,7 +452,7 @@ public class ChatApp extends JFrame implements Runnable{
 /*			byteMessage = JEncryptRSA.encryptRSA(byteMessage.toString(), pubExp, pubMod);
 	System.out.println("r2 ency enc str " + byteMessage.toString());*/
 			this.writeMessageToChatWindow("Sending: Session Key " + sharedKey.toString());
-			this.sendMessage(byteMessage.length,byteMessage);
+			this.sendRawMessage(byteMessage.length,byteMessage);
 			
 		}
 		
