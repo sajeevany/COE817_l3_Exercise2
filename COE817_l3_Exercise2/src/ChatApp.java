@@ -124,6 +124,17 @@ public class ChatApp implements Runnable{
 	}
         
         //desKeygen() returns a Secret Key Object, need to be used to encrypt and decrypt
+        // encryptMessage takes in string and returns a Byte array
+        // decryptMessage takes byte array and returns Original string
+        // Nounce values must be equal for encrypt and decrypt.. OR ELSE computer will explode
+        
+        // EXAMPLE USE 
+           // byte nounce = 1;
+           // SecretKey newKey = desKeyGen();
+           // byte[]encryptedMessage =  encryptDES(message , nounce, newKey);
+          //  String output = decryptDES(encryptedMessage , nounce, newKey);
+
+        
         public SecretKey desKeyGen() throws NoSuchAlgorithmException {
 
          //init keygenerator, Object contains functionality to create keys
