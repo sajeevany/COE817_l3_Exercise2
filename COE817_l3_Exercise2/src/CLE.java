@@ -5,7 +5,7 @@ public class CLE {
 		ChatApp server = new ChatApp("localhost", 10901, "server", "keyGenerationSeed", ChatApp.designation.server);
 		ChatApp client = new ChatApp("localhost", 10901, "client", "keyGenerationSeed", ChatApp.designation.client);
 		
-		server.run();
-		client.run();
+		server.start();
+		client.start();
 	}
 }
