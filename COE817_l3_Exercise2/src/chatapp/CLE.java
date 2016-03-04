@@ -1,3 +1,4 @@
+package chatapp;
 public class CLE {
 
 	public static void main(String[] args)
