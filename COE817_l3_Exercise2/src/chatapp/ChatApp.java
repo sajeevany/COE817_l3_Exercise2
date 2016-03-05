@@ -17,6 +17,7 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
+import java.security.NoSuchProviderException;
 import java.security.spec.InvalidKeySpecException;
 import java.util.Arrays;
 import java.util.Base64;
@@ -246,7 +247,8 @@ public class ChatApp extends JFrame implements Runnable{
 				byte[] byteMessage = readByteStream();
 				//workaround for shared key transmission
 				byte expectedNounce = ((this.myDesignation == designation.server) ? this.expectedNounceCreatedByServer : this.expectedNounceCreatedByClient );
-				String receivedMessage = decryptDESEncryptedMessage(byteMessage, this.sentSecret, expectedNounce);
+				//String receivedMessage = decryptDESEncryptedMessage(byteMessage, this.sentSecret, expectedNounce); //work around
+				String receivedMessage = decryptDESEncryptedMessage(byteMessage, this.sharedKey, expectedNounce);
 				
 				writeMessageToChatWindow("[ " + ((this.myDesignation == designation.server) ? "client" : "server")  +"]" + receivedMessage);
 			}catch (IOException e) {
@@ -326,14 +328,14 @@ public class ChatApp extends JFrame implements Runnable{
 	}
 	
 	//Handshake utilizing RSA Public and Private Keys
-	void handshake() throws InvalidKeyException, NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeySpecException, IllegalBlockSizeException, BadPaddingException, IOException
+	void handshake() throws InvalidKeyException, NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeySpecException, IllegalBlockSizeException, BadPaddingException, IOException, NoSuchProviderException
 	{	
 		
 		//PUBLIC AND PRIVATE KEYS FOR Host A / CLIENT
 		BigInteger client_modulus = new BigInteger("4158817544478891990887332699388746060980490741231277290559702504481613466980550442961706478901240858287061074274789302013459087253486188049671010462722451");
 		BigInteger client_pubExp = new BigInteger("2783863571710165701756366128212716963200397432188587571344045992006907476723469011955324259588982550734021144915835869507295184475525800489326435352933629");
 		BigInteger client_privExp = new BigInteger("2395546180722602066193082622862328107144358038135554220929904800445279801651718781695642149219208087949758635408245613872208809224050269093597648332110397");
-
+		
 	        
 		// PUBLIC AND PRIVATE KEYS FOR Host B / SERVER
 	    BigInteger server_modulus = new BigInteger("4599262798794308708014101451216442903941121046201886206956480723533329439440024060097691229615851392513071323777864307630956530138394825517668034826098437");
@@ -392,29 +394,28 @@ public class ChatApp extends JFrame implements Runnable{
 			//RECV E(PUb,E(PRa, Ks))
 			this.writeMessageToChatWindow("Handshake PHASE 4");
 			byteMessage = readByteStream();
-			/*	
-			decryptedMessage = JEncryptRSA.decryptRSA(byteMessage, server_privExp, server_modulus);
-			decryptedMessage= JEncryptRSA.decryptRSA(decryptedMessage.getBytes(), client_pubExp, client_modulus);
-			byte[] decodedKey = Base64.getDecoder().decode(decryptedMessage);
-			this.sharedKey = new SecretKeySpec(decodedKey, 0, decodedKey.length, "DES");
-			writeMessageToChatWindow("[client]: shared key " + sharedKey.toString());*/
 			
 			if (Arrays.equals(byteMessage, sent2_encryptedPublic))
-				System.out.println("sent2 they match. Message was delivered correctly.");
+			System.out.println("sent2 they match. Message was delivered correctly.");
 			
-			decryptedMessage = JEncryptRSA.decryptRSA(byteMessage, server_privExp, server_modulus);
-			byte[] tempMsg = decryptedMessage.getBytes();
-			if (Arrays.equals(decryptedMessage.getBytes(), sent1_signed))
+			byte[] decryptedMessageBytes = JEncryptRSA.decryptRSABytes(byteMessage, server_privExp, server_modulus);
+			if (Arrays.equals(decryptedMessageBytes, sent1_signed))
 				System.out.println("sent1 they match");
 			else
 				System.out.println("sent1 they do not match");
-			//decryptedMessage = JEncryptRSA.decryptRSA(byteMessage, client_pubExp, client_modulus);
-			decryptedMessage = JEncryptRSA.decryptRSA(decryptedMessage.getBytes(), server_privExp, server_modulus);
-			if (Arrays.equals(decryptedMessage.getBytes(), sentSecretKey))
+			//decryptedMessageBytes = JEncryptRSA.decryptRSABytes(decryptedMessageBytes, server_privExp, server_modulus);// test message 1
+			decryptedMessageBytes = JEncryptRSA.decryptRSABytes(decryptedMessageBytes, client_pubExp, client_modulus); //test message 2
+			//decryptedMessageBytes = JEncryptRSA.decryptRSASigned(decryptedMessageBytes, client_pubExp, client_modulus); //Expected: should work
+			if (Arrays.equals(decryptedMessageBytes, sentSecretKey))
 				System.out.println("key they match");
 			else
 				System.out.println("key they do not match");
-			System.out.println("r2 decr with client public enc str " + byteMessage.toString().trim());
+			System.out.println("key encode array server\n" + Arrays.toString(decryptedMessageBytes));
+			//set sharedkey
+			sharedKey = new SecretKeySpec(decryptedMessageBytes, 0, decryptedMessageBytes.length, "DES");
+			System.out.println(Arrays.toString(sharedKey.getEncoded()));
+			System.out.println("key encode array server p2\n" + Arrays.toString(decryptedMessageBytes));
+
 		}
 		else
 		{
@@ -460,22 +461,18 @@ public class ChatApp extends JFrame implements Runnable{
 			//generate shared key
 			sharedKey = jDes.desKeyGen();
 			//sign message
-//	System.out.println("enc str " + Base64.getEncoder().encodeToString(sharedKey.getEncoded()));
-			//byteMessage = JEncryptRSA.encryptRSA(Base64.getEncoder().encodeToString(sharedKey.getEncoded()), client_privExp, client_modulus);
 			sentSecret = sharedKey;
 			sentSecretKey = sharedKey.getEncoded();
-			//sentSecretKey = Base64.getEncoder().encodeToString(sharedKey.getEncoded());
+			System.out.println("key encode array client \n"  + Arrays.toString(sharedKey.getEncoded()));
+			//byteMessage = JEncryptRSA.encryptRSA(sharedKey.getEncoded(), server_pubExp, server_modulus); //Test message 1
+			byteMessage = JEncryptRSA.encryptRSA(sharedKey.getEncoded(), client_privExp, client_modulus); //Test message 2
+			//byteMessage = JEncryptRSA.encryptRSASigned(message, client_privExp, client_modulus); //Expected: should work
+			System.out.println("sending encrypted key");
+			sent1_signed = byteMessage;
+			byteMessage = JEncryptRSA.encryptRSA(byteMessage, server_pubExp, server_modulus);
+			sent2_encryptedPublic = byteMessage;
 			
-			//byteMessage = JEncryptRSA.encryptRSA(sharedKey.getEncoded(), client_privExp, client_modulus); //test
-			byteMessage = JEncryptRSA.encryptRSA(sharedKey.getEncoded(), server_pubExp, server_modulus);
-	System.out.println("sending encrypted key");
-	sent1_signed = byteMessage;
-	byteMessage = JEncryptRSA.encryptRSA(byteMessage, server_pubExp, server_modulus);
-	sent2_encryptedPublic = byteMessage;
-	
 			//encrypt with server's public key
-/*			byteMessage = JEncryptRSA.encryptRSA(byteMessage.toString(), pubExp, pubMod);
-	System.out.println("r2 ency enc str " + byteMessage.toString());*/
 			this.writeMessageToChatWindow("Sending: Session Key " + sharedKey.toString());
 			this.sendRawMessage(byteMessage.length,byteMessage);
 		}
