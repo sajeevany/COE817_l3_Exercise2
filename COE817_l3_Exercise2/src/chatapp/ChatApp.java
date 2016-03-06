@@ -35,6 +35,10 @@ import javax.swing.JTextField;
 import javax.swing.SwingUtilities;
 
 
+/**
+ * @author Admin
+ *
+ */
 public class ChatApp extends JFrame implements Runnable{
 	
 	public enum designation{server, client};
@@ -78,23 +82,6 @@ public class ChatApp extends JFrame implements Runnable{
 		this.port = portToConnect;
 		this.alias = (myAlias == null) ? "defaultName" : myAlias;
 		this.myDesignation = mydesignation;
-		
-		//generate public/private keys
-		
-		//run designation-specific initialization methods
-		/*try {
-			switch(myDesignation)
-			{
-				case server:
-					
-					break;
-				case client:
-					break;
-			}
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}*/
 	}
 	
 	public void openPort() throws IOException
@@ -127,15 +114,13 @@ public class ChatApp extends JFrame implements Runnable{
 						if (myDesignation == designation.server)
 						{
 							expectedNounceCreatedByServer = JEncrypDES.generateNounce();
-							sendDESEncryptedMessage(event.getActionCommand(), sentSecret, expectedNounceCreatedByServer, expectedNounceCreatedByClient);
+							sendDESEncryptedMessage(event.getActionCommand(), sharedKey, expectedNounceCreatedByServer, expectedNounceCreatedByClient);
 						}
 						else
 						{
 							expectedNounceCreatedByClient = JEncrypDES.generateNounce();
-							sendDESEncryptedMessage(event.getActionCommand(), sentSecret, expectedNounceCreatedByClient, expectedNounceCreatedByServer);
+							sendDESEncryptedMessage(event.getActionCommand(), sharedKey, expectedNounceCreatedByClient, expectedNounceCreatedByServer);
 						}
-						
-						//sendRawMessage(event.getActionCommand());
 						userText.setText(" ");
 					}
 				});
@@ -150,20 +135,31 @@ public class ChatApp extends JFrame implements Runnable{
 		
 	}
 	
+	
+	/**
+	 * This method is used to test connectivity. Sends raw message as string.
+	 * 
+	 * @param message - String message to send
+	 */
 	public void sendRawMessage(String message)
 	{
 		try {
-			/*dataOutStream.writeBytes(message);*/
 			bW.write(message);
 			bW.newLine();
 			bW.flush();
 			writeMessageToChatWindow("[ " + ((this.myDesignation == designation.server) ? "server " : "client")  +"]" + message);
 		} catch (IOException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 	}
 	
+	
+	/**
+	 * Sends raw byte array to secondary application at target socket
+	 * 
+	 * @param length - length of message
+	 * @param message - byte array of message
+	 */
 	public void sendRawMessage(int length, byte[] message)
 	{
 		try {
@@ -172,11 +168,13 @@ public class ChatApp extends JFrame implements Runnable{
 			//send message
 			dataOutStream.write(message);
 		} catch (IOException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 	}
 	
+	/**
+	 * Used to send DES encrypted String 
+	 */
 	public void sendDESEncryptedMessage(String message, SecretKey sharedKey, byte newNounce, byte expectedNounce)
 	{
 		try {
@@ -194,6 +192,7 @@ public class ChatApp extends JFrame implements Runnable{
 		}
 	}
 	
+
 	public String decryptDESEncryptedMessage(byte[] message, SecretKey sharedKey, byte expectedNounce)
 	{
 			JEncrypDES jDes = new JEncrypDES();
@@ -210,6 +209,10 @@ public class ChatApp extends JFrame implements Runnable{
 			return msg.trim();
 	}
 	
+	
+	/**
+	 * Write message to chap application GUI
+	 */
 	private void writeMessageToChatWindow(String message)
 	{
 		SwingUtilities.invokeLater(
@@ -226,8 +229,8 @@ public class ChatApp extends JFrame implements Runnable{
 	private void closeApp()
 	{
 		try {
-			/*dataOutStream.close();
-			dataInStream.close();	*/
+			dataOutStream.close();
+			dataInStream.close();
 			bR.close();
 			bW.close();
 			
@@ -240,19 +243,14 @@ public class ChatApp extends JFrame implements Runnable{
 	
 	private void chat()
 	{
-		/*String message = " You are now connected !";
-		sendRawMessage(message);*/
 		do{
 			try{
 				byte[] byteMessage = readByteStream();
-				//workaround for shared key transmission
 				byte expectedNounce = ((this.myDesignation == designation.server) ? this.expectedNounceCreatedByServer : this.expectedNounceCreatedByClient );
-				//String receivedMessage = decryptDESEncryptedMessage(byteMessage, this.sentSecret, expectedNounce); //work around
 				String receivedMessage = decryptDESEncryptedMessage(byteMessage, this.sharedKey, expectedNounce);
 				
-				writeMessageToChatWindow("[ " + ((this.myDesignation == designation.server) ? "client" : "server")  +"]" + receivedMessage);
+				writeMessageToChatWindow("[ " + ((this.myDesignation == designation.server) ? "client" : "server")  +"][decrypted]" + receivedMessage);
 			}catch (IOException e) {
-				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
 		}while(true);
@@ -296,18 +294,9 @@ public class ChatApp extends JFrame implements Runnable{
 				this.expectedNounceCreatedByClient = (byte) 22;
 				chat();
 				
-				//Wait for connection/open connection
-				//Handshake
-					//exchange public keys
-					//3 stage handshake
-				
-				//wait for action and act on action
-					//sign message with private key of local app
-					//encrypt message with public key of target client
 				closeApp();
 			}
 		}catch (Exception e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 	}
@@ -322,6 +311,7 @@ public class ChatApp extends JFrame implements Runnable{
 		{
 			message = new byte[messageLength];
 			dataInStream.readFully(message, 0, messageLength);
+			this.writeMessageToChatWindow("[Received Encrypted]" + Arrays.toString(message));
 		}
 		
 		return message;
@@ -348,7 +338,7 @@ public class ChatApp extends JFrame implements Runnable{
 	    
 		JEncrypDES jDes = new JEncrypDES();
 		JEncryptRSA jRSA = new JEncryptRSA();
-		int n1, n2, n1_temp, n2_temp;
+		int n1_temp, n2_temp;
 		String peerID = null, message = null;
 		byte[] byteMessage = null;
 		StringTokenizer sTkn;
@@ -394,27 +384,14 @@ public class ChatApp extends JFrame implements Runnable{
 			//RECV E(PUb,E(PRa, Ks))
 			this.writeMessageToChatWindow("Handshake PHASE 4");
 			byteMessage = readByteStream();
-			
-			if (Arrays.equals(byteMessage, sent2_encryptedPublic))
-			System.out.println("sent2 they match. Message was delivered correctly.");
-			
 			byte[] decryptedMessageBytes = JEncryptRSA.decryptRSABytes(byteMessage, server_privExp, server_modulus);
-			if (Arrays.equals(decryptedMessageBytes, sent1_signed))
-				System.out.println("sent1 they match");
-			else
-				System.out.println("sent1 they do not match");
-			//decryptedMessageBytes = JEncryptRSA.decryptRSABytes(decryptedMessageBytes, server_privExp, server_modulus);// test message 1
-			decryptedMessageBytes = JEncryptRSA.decryptRSABytes(decryptedMessageBytes, client_pubExp, client_modulus); //test message 2
-			//decryptedMessageBytes = JEncryptRSA.decryptRSASigned(decryptedMessageBytes, client_pubExp, client_modulus); //Expected: should work
-			if (Arrays.equals(decryptedMessageBytes, sentSecretKey))
-				System.out.println("key they match");
-			else
-				System.out.println("key they do not match");
-			System.out.println("key encode array server\n" + Arrays.toString(decryptedMessageBytes));
+			
+			decryptedMessageBytes = JEncryptRSA.decryptRSABytes(decryptedMessageBytes, client_pubExp, client_modulus);
+			//decryptedMessageBytes = JEncryptRSA.decryptRSASigned(decryptedMessageBytes, client_pubExp, client_modulus);
+
 			//set sharedkey
 			sharedKey = new SecretKeySpec(decryptedMessageBytes, 0, decryptedMessageBytes.length, "DES");
-			System.out.println(Arrays.toString(sharedKey.getEncoded()));
-			System.out.println("key encode array server p2\n" + Arrays.toString(decryptedMessageBytes));
+			this.writeMessageToChatWindow("[Received] Shared Key: " + Arrays.toString(sharedKey.getEncoded()));
 
 		}
 		else
@@ -422,7 +399,6 @@ public class ChatApp extends JFrame implements Runnable{
 			//set public key of opposite machine
 			pubExp = server_pubExp;
 			pubMod = server_modulus;
-			
 			
 			//SEND E(PUb, [N1||IDa])
 			this.writeMessageToChatWindow("Handshake PHASE 1");
@@ -460,20 +436,11 @@ public class ChatApp extends JFrame implements Runnable{
 			this.writeMessageToChatWindow("Handshake PHASE 4");
 			//generate shared key
 			sharedKey = jDes.desKeyGen();
-			//sign message
-			sentSecret = sharedKey;
-			sentSecretKey = sharedKey.getEncoded();
-			System.out.println("key encode array client \n"  + Arrays.toString(sharedKey.getEncoded()));
-			//byteMessage = JEncryptRSA.encryptRSA(sharedKey.getEncoded(), server_pubExp, server_modulus); //Test message 1
-			byteMessage = JEncryptRSA.encryptRSA(sharedKey.getEncoded(), client_privExp, client_modulus); //Test message 2
-			//byteMessage = JEncryptRSA.encryptRSASigned(message, client_privExp, client_modulus); //Expected: should work
-			System.out.println("sending encrypted key");
-			sent1_signed = byteMessage;
+			byteMessage = JEncryptRSA.encryptRSA(sharedKey.getEncoded(), client_privExp, client_modulus); 
+			//byteMessage = JEncryptRSA.encryptRSASigned(message, client_privExp, client_modulus);
 			byteMessage = JEncryptRSA.encryptRSA(byteMessage, server_pubExp, server_modulus);
-			sent2_encryptedPublic = byteMessage;
 			
-			//encrypt with server's public key
-			this.writeMessageToChatWindow("Sending: Session Key " + sharedKey.toString());
+			this.writeMessageToChatWindow("Sending Shared Key: " + Arrays.toString(sharedKey.getEncoded()));
 			this.sendRawMessage(byteMessage.length,byteMessage);
 		}
 	}
